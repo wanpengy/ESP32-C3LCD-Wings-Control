@@ -1,0 +1,16 @@
+# ESP-IDF 编译输出
+build/
+
+# 下载的依赖组件
+managed_components/
+
+# 环境变量文件
+.env
+
+# IDE 配置文件
+.vscode/
+.idea/
+
+# 系统生成的文件
+.DS_Store
+Thumbs.db
