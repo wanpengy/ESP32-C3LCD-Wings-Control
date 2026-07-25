@@ -1,0 +1,21 @@
+﻿idf_component_register(
+    SRCS
+        "main.c"
+        "wings_control_ux_enhanced.c"
+        "http_server_core.c"
+        "http_server_files_robot_simple_fixed.c"
+        "sequence_manager.c"
+        "sequence_manager_stop_play.c"
+        "http_server_sequence.c"
+        "http_server_ux_enhanced.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        LCD_Driver
+        Wireless
+        io_extension
+        esp_http_server
+        nvs_flash
+        driver
+        lvgl
+)

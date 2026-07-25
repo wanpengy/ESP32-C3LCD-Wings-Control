@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>ESP32 翅膀控制系统</title>
+<style>
+body{font-family:'Microsoft YaHei',Arial,sans-serif;margin:0;padding:20px;background-color:#fff9c4;}
+.container{max-width:400px;margin:0 auto;}
+.card{background:white;padding:20px;margin:15px 0;border-radius:16px;box-shadow:0 4px 8px rgba(0,0,0,0.1);}
+h1{color:#ff8f00;text-align:center;font-size:24px;margin-bottom:20px;}
+h2{color:#4caf50;font-size:18px;margin:15px 0 10px 0;padding-bottom:8px;border-bottom:2px solid #e0e0e0;}
+label{display:block;margin:12px 0 6px;font-weight:bold;font-size:15px;color:#333;}
+input[type="range"]{width:100%;margin:8px 0;height:36px;-webkit-appearance:none;background:#ffe082;border-radius:18px;outline:none;}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#ff8f00;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,0.3);}
+.current-indicator{width:100%;height:6px;background:#e0e0e0;border-radius:3px;margin:5px 0;position:relative;}
+.current-indicator-fill{height:100%;background:#4caf50;border-radius:3px;}
+.speed-input{width:70px;padding:6px;margin:5px;border:2px solid #ffe082;border-radius:6px;font-size:14px;}
+.angle-limit-input{width:60px;padding:5px;margin:0 5px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
+.symmetric-toggle{display:flex;align-items:center;margin:10px 0;}
+.symmetric-toggle input{margin-right:8px;transform:scale(1.2);}
+.button-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.button-group button{flex:1;min-width:80px;background:linear-gradient(135deg,#4caf50,#43a047);color:white;border:none;padding:10px;margin:0;border-radius:12px;cursor:pointer;font-size:14px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2);}
+.motor-button{background:linear-gradient(135deg,#2196f3,#1976d2)!important;}
+.sequence-button{background:linear-gradient(135deg,#ff9800,#f57c00)!important;}
+.status-text{font-size:13px;color:#666;margin-top:5px;}
+.slider-info{font-size:12px;color:#666;margin-top:2px;}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🦋 ESP32 翅膀控制系统</h1>
+
+<!-- 角度限制和对称控制 -->
+<div class="card">
+<h2>⚙️ 控制设置</h2>
+<div>
+<label>角度范围限制:</label>
+<div>最小角度: <input type="number" id="min-angle" class="angle-limit-input" min="0" max="270" value="120" onchange="updateAngleLimits()">°</div>
+<div>最大角度: <input type="number" id="max-angle" class="angle-limit-input" min="0" max="270" value="150" onchange="updateAngleLimits()">°</div>
+<div class="status-text" id="limits-feedback">✓ 角度范围已更新: 120° - 150°</div>
+</div>
+<div class="symmetric-toggle">
+<input type="checkbox" id="symmetric-lock" checked onchange="toggleSymmetricLock()">
+<label for="symmetric-lock">对称锁定 (左右翅膀同步)</label>
+</div>
+</div>
+
+<!-- 舵机控制 -->
+<div class="card">
+<h2>🕊️ 舵机控制</h2>
+<div>
+<label>左翅膀角度: <span id="left-angle-value">135°</span></label>
+<input type="range" id="left-servo" min="120" max="150" value="135" oninput="updateAngle('left')">
+<div class="slider-info">当前范围: <span id="left-range">120° - 150°</span></div>
+<div class="current-indicator"><div id="left-current-fill" class="current-indicator-fill" style="width:50%"></div></div>
+<label>左翅膀速度 (100-1500ms): <input type="number" id="left-speed" class="speed-input" min="100" max="1500" value="100" onchange="updateSpeed('left')"></label>
+</div>
+<div style="margin-top:20px;">
+<label>右翅膀角度: <span id="right-angle-value">135°</span></label>
+<input type="range" id="right-servo" min="120" max="150" value="135" oninput="updateAngle('right')">
+<div class="slider-info">当前范围: <span id="right-range">120° - 150°</span></div>
+<div class="current-indicator"><div id="right-current-fill" class="current-indicator-fill" style="width:50%"></div></div>
+<label>右翅膀速度 (100-1500ms): <input type="number" id="right-speed" class="speed-input" min="100" max="1500" value="100" onchange="updateSpeed('right')"></label>
+</div>
+</div>
+
+<!-- 电机控制 -->
+<div class="card">
+<h2>⚡ 电机控制</h2>
+<div class="button-group">
+<button class="motor-button" onclick="motorAction('expand')">展开翅膀</button>
+<button class="motor-button" onclick="motorAction('close')">闭合翅膀</button>
+<button class="motor-button" onclick="motorAction('reset')">复位</button>
+<button class="motor-button" onclick="motorAction('stop')">停止</button>
+</div>
+</div>
+
+<!-- 编程与执行功能 -->
+<div class="card">
+<h2>🧪 编程与执行 (测试功能)</h2>
+<div class="button-group">
+<button class="sequence-button" onclick="window.location.href='/sequence'">动作编程</button>
+<button class="sequence-button" onclick="playSequence()">播放序列</button>
+<button class="sequence-button" onclick="clearSequence()">清除序列</button>
+</div>
+<div class="status-text" id="sequence-status">支持最多10步动作序列编程</div>
+</div>
+</div>
+
+<script>
+// 全局变量
+let minAngle = 120;
+let maxAngle = 150;
+let symmetricLock = true;
+
+// 初始化滑条范围
+function initSliderRanges() {
+  const leftSlider = document.getElementById('left-servo');
+  const rightSlider = document.getElementById('right-servo');
+  leftSlider.min = minAngle;
+  leftSlider.max = maxAngle;
+  rightSlider.min = minAngle;
+  rightSlider.max = maxAngle;
+  
+  // 更新滑条信息显示
+  document.getElementById('left-range').textContent = minAngle + '° - ' + maxAngle + '°';
+  document.getElementById('right-range').textContent = minAngle + '° - ' + maxAngle + '°';
+  
+  // 如果超出范围，调整到范围内
+  if (parseInt(leftSlider.value) < minAngle) leftSlider.value = minAngle;
+  if (parseInt(leftSlider.value) > maxAngle) leftSlider.value = maxAngle;
+  if (parseInt(rightSlider.value) < minAngle) rightSlider.value = minAngle;
+  if (parseInt(rightSlider.value) > maxAngle) rightSlider.value = maxAngle;
+  
+  updateAngleDisplay();
+}
+
+// 更新角度限制
+function updateAngleLimits() {
+  const newMin = parseInt(document.getElementById('min-angle').value);
+  const newMax = parseInt(document.getElementById('max-angle').value);
+  
+  if (newMin >= 0 && newMin <= 270 && newMax >= 0 && newMax <= 270 && newMin < newMax) {
+    minAngle = newMin;
+    maxAngle = newMax;
+    initSliderRanges();
+    fetch('/set_limits?min=' + minAngle + '&max=' + maxAngle)
+      .then(() => {
+        document.getElementById('limits-feedback').textContent = '✓ 角度范围已更新: ' + minAngle + '° - ' + maxAngle + '°';
+        document.getElementById('limits-feedback').style.color = '#4caf50';
+      });
+  } else {
+    document.getElementById('limits-feedback').textContent = '❌ 角度范围无效！';
+    document.getElementById('limits-feedback').style.color = '#f44336';
+    document.getElementById('min-angle').value = minAngle;
+    document.getElementById('max-angle').value = maxAngle;
+  }
+}
+
+// 切换对称锁定
+function toggleSymmetricLock() {
+  symmetricLock = document.getElementById('symmetric-lock').checked;
+  fetch('/set_symmetric?locked=' + (symmetricLock ? '1' : '0'));
+  
+  if (symmetricLock) {
+    // 同步角度
+    const leftValue = parseInt(document.getElementById('left-servo').value);
+    document.getElementById('right-servo').value = leftValue;
+    document.getElementById('right-angle-value').textContent = leftValue + '°';
+    updateCurrentIndicator('right', leftValue);
+  }
+}
+
+// 更新角度显示
+function updateAngleDisplay() {
+  const leftSlider = document.getElementById('left-servo');
+  const rightSlider = document.getElementById('right-servo');
+  document.getElementById('left-angle-value').textContent = leftSlider.value + '°';
+  document.getElementById('right-angle-value').textContent = rightSlider.value + '°';
+}
+
+// 更新角度控制
+function updateAngle(side) {
+  const slider = document.getElementById(side + '-servo');
+  const angle = parseInt(slider.value);
+  const speed = parseInt(document.getElementById(side + '-speed').value);
+  const servoId = side === 'left' ? 0 : 1;
+  
+  fetch('/set_servo?servo_id=' + servoId + '&angle=' + angle + '&speed=' + speed);
+  updateAngleDisplay();
+  
+  // 对称锁定时同步另一侧
+  if (symmetricLock) {
+    const otherSide = side === 'left' ? 'right' : 'left';
+    document.getElementById(otherSide + '-servo').value = angle;
+    document.getElementById(otherSide + '-angle-value').textContent = angle + '°';
+  }
+}
+
+// 更新速度
+function updateSpeed(side) {
+  const angle = parseInt(document.getElementById(side + '-servo').value);
+  const speed = parseInt(document.getElementById(side + '-speed').value);
+  const servoId = side === 'left' ? 0 : 1;
+  fetch('/set_servo?servo_id=' + servoId + '&angle=' + angle + '&speed=' + speed);
+}
+
+// 更新当前角度指示器
+function updateCurrentIndicator(side, currentAngle) {
+  if (currentAngle < 0) {
+    document.getElementById(side + '-current-fill').style.width = '0%';
+    return;
+  }
+  
+  const min = minAngle;
+  const max = maxAngle;
+  const range = max - min;
+  if (range <= 0) return;
+  
+  let percentage = ((currentAngle - min) / range) * 100;
+  if (percentage < 0) percentage = 0;
+  if (percentage > 100) percentage = 100;
+  
+  document.getElementById(side + '-current-fill').style.width = percentage + '%';
+}
+
+// 电机控制
+function motorAction(action) {
+  fetch('/motor?action=' + action);
+}
+
+// 序列控制
+function playSequence() {
+  fetch('/sequence/play')
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById('sequence-status').textContent = '✅ 序列播放中...';
+        document.getElementById('sequence-status').style.color = '#4caf50';
+      } else {
+        document.getElementById('sequence-status').textContent = '❌ 播放失败: ' + data.message;
+        document.getElementById('sequence-status').style.color = '#f44336';
+      }
+    });
+}
+
+function clearSequence() {
+  if (confirm('确定要清除所有序列步骤吗？')) {
+    fetch('/sequence/clear')
+      .then(() => {
+        document.getElementById('sequence-status').textContent = '🗑️ 序列已清除';
+        document.getElementById('sequence-status').style.color = '#666';
+      });
+  }
+}
+
+// 轮询当前角度更新指示器
+setInterval(() => {
+  fetch('/get_angles')
+    .then(response => response.json())
+    .then(data => {
+      updateCurrentIndicator('left', data.left);
+      updateCurrentIndicator('right', data.right);
+      
+      // 如果有有效回传角度，更新控制滑条（仅当不在手动拖动时）
+      const leftSlider = document.getElementById('left-servo');
+      const rightSlider = document.getElementById('right-servo');
+      
+      if (data.left >= 0 && !leftSlider.matches(':active')) {
+        leftSlider.value = data.left;
+        document.getElementById('left-angle-value').textContent = data.left + '°';
+      }
+      if (data.right >= 0 && !rightSlider.matches(':active')) {
+        rightSlider.value = data.right;
+        document.getElementById('right-angle-value').textContent = data.right + '°';
+      }
+      
+      // 更新LCD角度显示
+      fetch('/lcd/angles?left=' + (data.left >= 0 ? data.left : 135) + '&right=' + (data.right >= 0 ? data.right : 135) + '&min=' + minAngle + '&max=' + maxAngle);
+    })
+    .catch(error => {
+      updateCurrentIndicator('left', -1);
+      updateCurrentIndicator('right', -1);
+    });
+}, 500);
+
+// 页面加载完成时初始化
+document.addEventListener('DOMContentLoaded', function() {
+  initSliderRanges();
+});
+</script>
+</body>
+</html>

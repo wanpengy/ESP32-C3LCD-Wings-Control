@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>翅膀控制系统 - 机器人编程</title>
+    <style>
+        * {box-sizing: border-box;}
+        body {font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif; margin: 0; padding: 15px; background-color: #fff34d; color: #333; -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; font-size: 14px; line-height: 1.4;}
+        .container {max-width: 1080px; margin: 0 auto;}
+        h1 {text-align: center; color: #2c3e50; margin-bottom: 20px; font-size: 24px; font-weight: bold;}
+        .section {background: white; border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);}
+        .section-title {font-size: 18px; font-weight: bold; margin-bottom: 12px; color: #2c3e50; text-align: center;}
+        .control-group {margin-bottom: 12px;}
+        label {display: block; margin-bottom: 6px; font-weight: bold; color: #2c3e50; font-size: 14px;}
+        input[type="range"] {width: 100%; height: 8px; border-radius: 4px; background: #ddd; outline: none; -webkit-appearance: none; margin: 4px 0;}
+        input[type="range"]::-webkit-slider-thumb {-webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #3498db; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.2);}
+        input[type="number"] {width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;}
+        .angle-display {display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: #2c3e50;}
+        .current-indicator {height: 3px; background: #2ecc71; border-radius: 2px; margin-top: 6px; position: relative;}
+        .current-indicator::before {content: ''; position: absolute; right: 0; top: 0; height: 100%; background: #ecf0f1;}
+        .button-group {display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0;}
+        button {flex: 1; min-width: 70px; padding: 10px; border: none; border-radius: 20px; background: #3498db; color: white; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 13px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;}
+        button:hover {background: #2980b9; transform: translateY(-1px);}
+        button:active {transform: translateY(0);}
+        .motor-button {background: #e74c3c;}
+        .motor-button:hover {background: #c0392b;}
+        .sequence-button {background: #9b59b6;}
+        .sequence-button:hover {background: #8e44ad;}
+        .record-button {background: #e67e22;}
+        .record-button:hover {background: #d35400;}
+        .undo-button {background: #7f8c8d;}
+        .undo-button:hover {background: #95a5a6;}
+        .feedback {margin-top: 8px; padding: 6px; border-radius: 6px; text-align: center; font-weight: bold; font-size: 13px;}
+        .slider-container {margin-bottom: 12px;}
+        .single-slider-container {text-align: center;}
+        .single-slider-label {font-size: 15px; font-weight: bold; margin-bottom: 8px; color: #2c3e50;}
+        .single-angle-display {display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 8px;}
+        .angle-value {font-size: 16px; font-weight: bold; color: #2c3e50;}
+        .hidden {display: none !important;}
+        .switch-container {display: flex; align-items: center; justify-content: center; gap: 8px; margin: 12px 0;}
+        .switch-label {font-weight: bold; color: #2c3e50; font-size: 14px;}
+        .sequence-info {margin-top: 8px; font-size: 12px; color: #7f8c8d; text-align: center;}
+        
+        /* 录制状态指示器 */
+        .recording-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e74c3c;
+            margin-right: 6px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0% {opacity: 1;}
+            50% {opacity: 0.3;}
+            100% {opacity: 1;}
+        }
+        
+        /* 步骤列表样式 */
+        .steps-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 480px) {
+            body {padding: 10px; font-size: 13px;}
+            h1 {font-size: 20px; margin-bottom: 15px;}
+            .section {padding: 12px; margin-bottom: 15px;}
+            .section-title {font-size: 16px; margin-bottom: 10px;}
+            button {padding: 8px; min-width: 60px; font-size: 12px;}
+            input[type="number"] {padding: 6px; font-size: 13px;}
+            .angle-value {font-size: 14px;}
+            .single-slider-label {font-size: 14px; margin-bottom: 6px;}
+        }
+        
+        /* 触摸设备优化 */
+        @media (hover: none) and (pointer: coarse) {
+            input[type="range"]::-webkit-slider-thumb {width: 26px; height: 26px;}
+            button {padding: 12px; min-height: 44px;}
+        }
+    </style>
+</head>
+<body onload="init()">
+    <div class="container">
+        <h1>🦋 翅膀控制系统 - 机器人编程</h1>
+        
+        <!-- 控制设置 -->
+        <div class="section">
+            <div class="section-title">⚙️ 控制设置</div>
+            
+            <div class="control-group">
+                <label for="min-angle">最小角度限制 (°)</label>
+                <input type="number" id="min-angle" value="120" min="0" max="270">
+            </div>
+            
+            <div class="control-group">
+                <label for="max-angle">最大角度限制 (°)</label>
+                <input type="number" id="max-angle" value="150" min="0" max="270">
+            </div>
+            
+            <button onclick="updateAngleLimits()" style="background: #27ae60;">更新角度限制</button>
+            <div id="limits-feedback" class="feedback"></div>
+            
+            <div class="switch-container">
+                <span class="switch-label">左右对称控制:</span>
+                <label class="switch">
+                    <input type="checkbox" id="symmetric-lock" checked onchange="toggleSymmetricMode()">
+                </label>
+            </div>
+        </div>
+        
+        <!-- 舵机控制 - 双滑条模式 -->
+        <div class="section" id="dual-servo-control">
+            <div class="section-title">🦾 舵机控制 (独立)</div>
+            
+            <!-- 左侧舵机 -->
+            <div class="slider-container">
+                <label>左侧翅膀角度</label>
+                <input type="range" id="left-servo" min="120" max="150" value="135" oninput="updateDualAngle('left')">
+                <div class="angle-display">
+                    <span id="left-range">120° - 150°</span>
+                    <span id="left-angle-value">135°</span>
+                </div>
+                <div class="current-indicator" id="left-current">
+                    <div id="left-current-fill" style="width: 50%;"></div>
+                </div>
+                
+                <div class="control-group" style="margin-top: 8px;">
+                    <label for="left-speed">左侧速度 (ms)</label>
+                    <input type="number" id="left-speed" value="100" min="0" max="9999" onchange="updateDualSpeed('left')">
+                </div>
+            </div>
+            
+            <!-- 右侧舵机 -->
+            <div class="slider-container">
+                <label>右侧翅膀角度</label>
+                <input type="range" id="right-servo" min="120" max="150" value="135" oninput="updateDualAngle('right')">
+                <div class="angle-display">
+                    <span id="right-range">120° - 150°</span>
+                    <span id="right-angle-value">135°</span>
+                </div>
+                <div class="current-indicator" id="right-current">
+                    <div id="right-current-fill" style="width: 50%;"></div>
+                </div>
+                
+                <div class="control-group" style="margin-top: 8px;">
+                    <label for="right-speed">右侧速度 (ms)</label>
+                    <input type="number" id="right-speed" value="100" min="0" max="9999" onchange="updateDualSpeed('right')">
+                </div>
+            </div>
+        </div>
+        
+        <!-- 舵机控制 - 单滑条模式 -->
+        <div class="section hidden" id="single-servo-control">
+            <div class="section-title">🦾 舵机控制 (对称)</div>
+            
+            <div class="single-slider-container">
+                <div class="single-slider-label">两侧翅膀角度</div>
+                <input type="range" id="both-servo" min="120" max="150" value="135" oninput="updateSingleAngle()">
+                <div class="single-angle-display">
+                    <span id="both-range">120° - 150°</span>
+                    <span class="angle-value" id="both-angle-value">135°</span>
+                </div>
+                <div class="current-indicator" id="both-current">
+                    <div id="both-current-fill" style="width: 50%;"></div>
+                </div>
+            </div>
+            
+            <div class="control-group" style="margin-top: 15px;">
+                <label for="both-speed">两侧速度 (ms)</label>
+                <input type="number" id="both-speed" value="100" min="0" max="9999" onchange="updateSingleSpeed()">
+            </div>
+        </div>
+        
+        <!-- 电机控制 -->
+        <div class="section">
+            <div class="section-title">⚡ 电机控制</div>
+            <div class="button-group">
+                <button class="motor-button" onclick="motorAction('expand')">展开翅膀</button>
+                <button class="motor-button" onclick="motorAction('close')">收拢翅膀</button>
+                <button class="motor-button" onclick="motorAction('reset')">重置位置</button>
+                <button class="motor-button" onclick="motorAction('stop')">停止电机</button>
+            </div>
+        </div>
+        
+        <!-- 机器人编程序列控制 -->
+        <div class="section">
+            <div class="section-title">🤖 机器人编程</div>
+            
+            <!-- 录制控制 -->
+            <div class="control-group">
+                <div class="button-group">
+                    <button class="record-button" onclick="startRecording()" id="start-record-btn">⏺️ 开始录制</button>
+                    <button class="record-button" onclick="stopRecording()" id="stop-record-btn" disabled>⏹️ 停止录制</button>
+                </div>
+                <div id="recording-status" class="sequence-info">等待开始录制...</div>
+            </div>
+            
+            <!-- 记录和撤回 -->
+            <div class="control-group">
+                <div class="button-group">
+                    <button class="record-button" onclick="recordCurrentStep()" id="record-step-btn" disabled>📝 记录步骤</button>
+                    <button class="undo-button" onclick="undoLastStep()" id="undo-btn" disabled>↩️ 撤回</button>
+                </div>
+                <div class="sequence-info" id="steps-info">已记录 <span id="step-count">0</span> 步</div>
+            </div>
+            
+            <!-- 默认序列和清除 -->
+            <div class="button-group">
+                <button class="sequence-button" onclick="setDefaultSequence()">🔄 默认开合</button>
+                <button class="sequence-button" onclick="clearAllSteps()">🗑️ 清空序列</button>
+            </div>
+            
+            <!-- 步骤详情显示 -->
+            <div class="control-group">
+                <label>当前序列步骤:</label>
+                <div class="steps-list" id="steps-list">暂无步骤</div>
+            </div>
+            
+            <!-- 播放控制 -->
+            <div class="button-group" style="margin-top: 15px;">
+                <button class="sequence-button" onclick="playSequence()">▶️ 播放序列</button>
+            </div>
+            
+            <div id="sequence-status" class="feedback" style="margin-top: 8px;"></div>
+        </div>
+    </div>
+
+    <script>
+        let minAngle = 120;
+        let maxAngle = 150;
+        let symmetricMode = true;
+        let isRecording = false;
+        let stepCount = 0;
+        
+        function init() {
+            updateSliderRanges();
+            toggleSymmetricMode();
+            updateRecordingUI();
+            loadSequenceSteps();
+        }
+        
+        function updateSliderRanges() {
+            const sliders = ['left-servo', 'right-servo', 'both-servo'];
+            sliders.forEach(id => {
+                const slider = document.getElementById(id);
+                if (slider) {
+                    slider.min = minAngle;
+                    slider.max = maxAngle;
+                    const currentValue = parseInt(slider.value);
+                    if (currentValue < minAngle) slider.value = minAngle;
+                    if (currentValue > maxAngle) slider.value = maxAngle;
+                }
+            });
+            
+            document.getElementById('left-range').textContent = minAngle + '° - ' + maxAngle + '°';
+            document.getElementById('right-range').textContent = minAngle + '° - ' + maxAngle + '°';
+            document.getElementById('both-range').textContent = minAngle + '° - ' + maxAngle + '°';
+            
+            updateAngleDisplays();
+        }
+        
+        function updateAngleLimits() {
+            const newMin = parseInt(document.getElementById('min-angle').value);
+            const newMax = parseInt(document.getElementById('max-angle').value);
+            
+            if (newMin >= 0 && newMin <= 270 && newMax >= 0 && newMax <= 270 && newMin < newMax) {
+                minAngle = newMin;
+                maxAngle = newMax;
+                updateSliderRanges();
+                fetch('/set_limits?min=' + minAngle + '&max=' + maxAngle)
+                    .then(() => {
+                        document.getElementById('limits-feedback').textContent = '✓ 角度范围已更新: ' + minAngle + '° - ' + maxAngle + '°';
+                        document.getElementById('limits-feedback').style.color = '#27ae60';
+                    });
+            } else {
+                document.getElementById('limits-feedback').textContent = '❌ 角度范围无效！';
+                document.getElementById('limits-feedback').style.color = '#e74c3c';
+                document.getElementById('min-angle').value = minAngle;
+                document.getElementById('max-angle').value = maxAngle;
+            }
+        }
+        
+        function toggleSymmetricMode() {
+            symmetricMode = document.getElementById('symmetric-lock').checked;
+            
+            if (symmetricMode) {
+                document.getElementById('dual-servo-control').classList.add('hidden');
+                document.getElementById('single-servo-control').classList.remove('hidden');
+                
+                const leftValue = parseInt(document.getElementById('left-servo').value);
+                document.getElementById('both-servo').value = leftValue;
+                document.getElementById('both-angle-value').textContent = leftValue + '°';
+                document.getElementById('both-speed').value = document.getElementById('left-speed').value;
+                
+                const speed = parseInt(document.getElementById('both-speed').value);
+                fetch('/set_servo?servo_id=0&angle=' + leftValue + '&speed=' + speed);
+                fetch('/set_servo?servo_id=1&angle=' + leftValue + '&speed=' + speed);
+                fetch('/set_symmetric?locked=1');
+            } else {
+                document.getElementById('single-servo-control').classList.add('hidden');
+                document.getElementById('dual-servo-control').classList.remove('hidden');
+                
+                const bothValue = parseInt(document.getElementById('both-servo').value);
+                document.getElementById('left-servo').value = bothValue;
+                document.getElementById('right-servo').value = bothValue;
+                document.getElementById('left-angle-value').textContent = bothValue + '°';
+                document.getElementById('right-angle-value').textContent = bothValue + '°';
+                document.getElementById('left-speed').value = document.getElementById('both-speed').value;
+                document.getElementById('right-speed').value = document.getElementById('both-speed').value;
+                
+                fetch('/set_symmetric?locked=0');
+            }
+            
+            updateAngleDisplays();
+        }
+        
+        function updateAngleDisplays() {
+            if (symmetricMode) {
+                const bothValue = document.getElementById('both-servo').value;
+                document.getElementById('both-angle-value').textContent = bothValue + '°';
+            } else {
+                const leftValue = document.getElementById('left-servo').value;
+                const rightValue = document.getElementById('right-servo').value;
+                document.getElementById('left-angle-value').textContent = leftValue + '°';
+                document.getElementById('right-angle-value').textContent = rightValue + '°';
+            }
+        }
+        
+        function updateSingleAngle() {
+            const angle = parseInt(document.getElementById('both-servo').value);
+            const speed = parseInt(document.getElementById('both-speed').value);
+            
+            fetch('/set_servo?servo_id=0&angle=' + angle + '&speed=' + speed);
+            fetch('/set_servo?servo_id=1&angle=' + angle + '&speed=' + speed);
+            
+            document.getElementById('both-angle-value').textContent = angle + '°';
+        }
+        
+        function updateSingleSpeed() {
+            const angle = parseInt(document.getElementById('both-servo').value);
+            const speed = parseInt(document.getElementById('both-speed').value);
+            
+            fetch('/set_servo?servo_id=0&angle=' + angle + '&speed=' + speed);
+            fetch('/set_servo?servo_id=1&angle=' + angle + '&speed=' + speed);
+        }
+        
+        function updateDualAngle(side) {
+            const slider = document.getElementById(side + '-servo');
+            const angle = parseInt(slider.value);
+            const speed = parseInt(document.getElementById(side + '-speed').value);
+            const servoId = side === 'left' ? 0 : 1;
+            
+            fetch('/set_servo?servo_id=' + servoId + '&angle=' + angle + '&speed=' + speed);
+            document.getElementById(side + '-angle-value').textContent = angle + '°';
+        }
+        
+        function updateDualSpeed(side) {
+            const angle = parseInt(document.getElementById(side + '-servo').value);
+            const speed = parseInt(document.getElementById(side + '-speed').value);
+            const servoId = side === 'left' ? 0 : 1;
+            
+            fetch('/set_servo?servo_id=' + servoId + '&angle=' + angle + '&speed=' + speed);
+        }
+        
+        function updateCurrentIndicator(side, currentAngle) {
+            const indicatorFill = document.getElementById(side + '-current-fill');
+            if (!indicatorFill) return;
+            
+            if (currentAngle < 0) {
+                indicatorFill.style.width = '0%';
+                return;
+            }
+            
+            const range = maxAngle - minAngle;
+            if (range <= 0) return;
+            
+            let percentage = ((currentAngle - minAngle) / range) * 100;
+            percentage = Math.max(0, Math.min(100, percentage));
+            indicatorFill.style.width = percentage + '%';
+        }
+        
+        function motorAction(action) {
+            fetch('/motor?action=' + action);
+        }
+        
+        function updateRecordingUI() {
+            const startBtn = document.getElementById('start-record-btn');
+            const stopBtn = document.getElementById('stop-record-btn');
+            const recordBtn = document.getElementById('record-step-btn');
+            const undoBtn = document.getElementById('undo-btn');
+            const statusDiv = document.getElementById('recording-status');
+            
+            if (isRecording) {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                recordBtn.disabled = false;
+                statusDiv.innerHTML = '<span class="recording-indicator"></span>录制中...';
+                statusDiv.style.color = '#e74c3c';
+            } else {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                recordBtn.disabled = true;
+                statusDiv.textContent = '等待开始录制...';
+                statusDiv.style.color = '#7f8c8d';
+            }
+            
+            // 更新撤回按钮状态
+            undoBtn.disabled = (stepCount <= 0);
+            
+            // 更新步数显示
+            document.getElementById('step-count').textContent = stepCount;
+        }
+        
+        // 开始录制
+        function startRecording() {
+            fetch('/sequence/start')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        isRecording = true;
+                        stepCount = data.frame_count || 0;
+                        updateRecordingUI();
+                        document.getElementById('sequence-status').textContent = '✅ 录制已开始';
+                        document.getElementById('sequence-status').style.color = '#27ae60';
+                        loadSequenceSteps();
+                    } else {
+                        document.getElementById('sequence-status').textContent = '❌ ' + data.message;
+                        document.getElementById('sequence-status').style.color = '#e74c3c';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('sequence-status').textContent = '❌ 录制启动失败';
+                    document.getElementById('sequence-status').style.color = '#e74c3c';
+                });
+        }
+        
+        // 停止录制
+        function stopRecording() {
+            fetch('/sequence/stop')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        isRecording = false;
+                        stepCount = data.frame_count || 0;
+                        updateRecordingUI();
+                        document.getElementById('sequence-status').textContent = '⏹️ 录制已停止';
+                        document.getElementById('sequence-status').style.color = '#7f8c8d';
+                    } else {
+                        document.getElementById('sequence-status').textContent = '❌ ' + data.message;
+                        document.getElementById('sequence-status').style.color = '#e74c3c';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('sequence-status').textContent = '❌ 停止录制失败';
+                    document.getElementById('sequence-status').style.color = '#e74c3c';
+                });
+        }
+        
+        // 记录当前步骤
+        function recordCurrentStep() {
+            if (!isRecording) {
+                document.getElementById('sequence-status').textContent = '⚠️ 请先开始录制';
+                document.getElementById('sequence-status').style.color = '#f39c12';
+                return;
+            }
+            
+            let leftAngle, rightAngle;
+            if (symmetricMode) {
+                leftAngle = parseInt(document.getElementById('both-servo').value);
+                rightAngle = leftAngle;
+            } else {
+                leftAngle = parseInt(document.getElementById('left-servo').value);
+                rightAngle = parseInt(document.getElementById('right-servo').value);
+            }
+            
+            fetch(`/sequence/record?left_angle=${leftAngle}&right_angle=${rightAngle}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        stepCount = data.frame_count || stepCount + 1;
+                        updateRecordingUI();
+                        
+                        let feedback = `✅ 步骤${stepCount}已记录`;
+                        if (data.last_left !== undefined) {
+                            feedback += `: L=${data.last_left}°, R=${data.last_right}°`;
+                            if (data.delay_ms > 0) {
+                                feedback += `, 间隔${data.delay_ms}ms`;
+                            }
+                        }
+                        
+                        document.getElementById('sequence-status').textContent = feedback;
+                        document.getElementById('sequence-status').style.color = '#27ae60';
+                        loadSequenceSteps();
+                    } else {
+                        document.getElementById('sequence-status').textContent = '❌ ' + data.message;
+                        document.getElementById('sequence-status').style.color = '#e74c3c';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('sequence-status').textContent = '❌ 记录步骤失败';
+                    document.getElementById('sequence-status').style.color = '#e74c3c';
+                });
+        }
+        
+        // 撤回上一步
+        function undoLastStep() {
+            if (stepCount <= 0) {
+                document.getElementById('sequence-status').textContent = '⚠️ 没有可撤回的步骤';
+                document.getElementById('sequence-status').style.color = '#f39c12';
+                return;
+            }
+            
+            fetch('/sequence/undo')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        stepCount = data.frame_count || Math.max(0, stepCount - 1);
+                        updateRecordingUI();
+                        document.getElementById('sequence-status').textContent = '↩️ 已撤回上一步';
+                        document.getElementById('sequence-status').style.color = '#7f8c8d';
+                        loadSequenceSteps();
+                    } else {
+                        document.getElementById('sequence-status').textContent = '❌ ' + data.message;
+                        document.getElementById('sequence-status').style.color = '#e74c3c';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('sequence-status').textContent = '❌ 撤回失败';
+                    document.getElementById('sequence-status').style.color = '#e74c3c';
+                });
+        }
+        
+        // 设置默认序列
+        function setDefaultSequence() {
+            if (confirm('设置默认开合序列（120°↔150°，5秒间隔）？这将清空现有序列。')) {
+                fetch('/sequence/default')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            stepCount = data.frame_count || 0;
+                            updateRecordingUI();
+                            document.getElementById('sequence-status').textContent = '🔄 默认序列已设置';
+                            document.getElementById('sequence-status').style.color = '#9b59b6';
+                            loadSequenceSteps();
+                        } else {
+                            document.getElementById('sequence-status').textContent = '❌ ' + data.message;
+                            document.getElementById('sequence-status').style.color = '#e74c3c';
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('sequence-status').textContent = '❌ 设置默认序列失败';
+                        document.getElementById('sequence-status').style.color = '#e74c3c';
+                    });
+            }
+        }
+        
+        // 清空所有步骤
+        function clearAllSteps() {
+            if (confirm('确定要清空所有序列步骤吗？')) {
+                fetch('/sequence/clear')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            stepCount = 0;
+                            updateRecordingUI();
+                            document.getElementById('sequence-status').textContent = '🗑️ 序列已清空';
+                            document.getElementById('sequence-status').style.color = '#7f8c8d';
+                            loadSequenceSteps();
+                        } else {
+                            document.getElementById('sequence-status').textContent = '❌ ' + data.message;
+                            document.getElementById('sequence-status').style.color = '#e74c3c';
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('sequence-status').textContent = '❌ 清空序列失败';
+                        document.getElementById('sequence-status').style.color = '#e74c3c';
+                    });
+            }
+        }
+        
+        // 播放序列
+        function playSequence() {
+            fetch('/sequence/play')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('sequence-status').textContent = '▶️ 序列播放中...';
+                        document.getElementById('sequence-status').style.color = '#3498db';
+                    } else {
+                        document.getElementById('sequence-status').textContent = '❌ ' + data.message;
+                        document.getElementById('sequence-status').style.color = '#e74c3c';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('sequence-status').textContent = '❌ 播放序列失败';
+                    document.getElementById('sequence-status').style.color = '#e74c3c';
+                });
+        }
+        
+        // 加载序列步骤显示
+        function loadSequenceSteps() {
+            fetch('/sequence/list')
+                .then(response => response.json())
+                .then(data => {
+                    const stepsList = document.getElementById('steps-list');
+                    if (data.success && data.steps && data.steps.length > 0) {
+                        let html = '';
+                        data.steps.forEach((step, index) => {
+                            html += `步骤 ${index + 1}: L=${step.left_angle}°, R=${step.right_angle}°`;
+                            if (step.delay_ms > 0) {
+                                html += ` (间隔${step.delay_ms}ms)`;
+                            }
+                            html += '<br>';
+                        });
+                        stepsList.innerHTML = html;
+                    } else {
+                        stepsList.textContent = '暂无步骤';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('steps-list').textContent = '加载失败';
+                });
+        }
+        
+        // 定期更新当前角度指示器（模拟从设备获取实际角度）
+        setInterval(() => {
+            // 这里应该从设备获取实际角度，但为了演示，我们使用滑块值
+            const leftAngle = parseInt(document.getElementById('left-servo').value);
+            const rightAngle = parseInt(document.getElementById('right-servo').value);
+            const bothAngle = parseInt(document.getElementById('both-servo').value);
+            
+            if (symmetricMode) {
+                updateCurrentIndicator('both', bothAngle);
+            } else {
+                updateCurrentIndicator('left', leftAngle);
+                updateCurrentIndicator('right', rightAngle);
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
